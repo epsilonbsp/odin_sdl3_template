@@ -1,8 +1,8 @@
 @echo off
+setlocal EnableDelayedExpansion
 
 set EXE_NAME=odin_sdl3_template.exe
-set SDL_VERSION=release-3.2.16
-set VSDEVCMD="C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
+set SDL_VERSION=release-3.4.2
 
 if not exist build mkdir build
 if not exist build\output mkdir build\output
@@ -16,13 +16,26 @@ if "%~1" == "get-sdl3" (
 )
 
 if "%~1" == "build-sdl3" (
+    for /f "tokens=*" %%i in ('"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath') do set VS=%%i
+
+    if "!VS!" equ "" (
+        echo ERROR: MSVC installation not found
+        exit /b 1
+    )
+
     cd build\vendor
-    git clone https://github.com/libsdl-org/SDL.git sdl
+
+    if not exist sld (
+        git clone https://github.com/libsdl-org/SDL.git sdl
+    )
+
     cd sdl
+
     git checkout %SDL_VERSION%
-    %VSDEVCMD%
+    call "!VS!\Common7\Tools\vsdevcmd.bat" -arch=x64 -host_arch=x64 || exit /b 1
     cmake -S . -B build
     cmake --build build --config Release
+
     cd ..\..
     copy /Y "vendor\sdl\build\Release\SDL3.dll" "output\SDL3.dll"
     copy /Y "vendor\sdl\build\Release\SDL3.lib" "output\SDL3.lib"

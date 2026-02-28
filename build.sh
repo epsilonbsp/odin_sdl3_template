@@ -3,7 +3,7 @@
 set -e
 
 EXE_NAME="odin_sdl3_template"
-SDL_VERSION="release-3.2.16"
+SDL_VERSION="release-3.4.2"
 
 mkdir -p build
 mkdir -p build/output
@@ -13,8 +13,13 @@ clear
 
 if [ "$1" = "build-sdl3" ]; then
     cd build/vendor
-    [ -d sdl ] || git clone https://github.com/libsdl-org/SDL.git sdl
+
+    if [ ! -d sdl ]; then
+        [ -d sdl ] || git clone https://github.com/libsdl-org/SDL.git sdl
+    fi
+
     cd sdl
+
     git checkout "$SDL_VERSION"
     cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
     cmake --build build
