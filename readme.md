@@ -34,11 +34,11 @@ Although SDL3 is included in Odin vendor, it might be missing library binaries f
 * On Windows you can just copy SDL3 library binaries from Odin vendor directory into place where your executable is located, in this template that will be `build/output`
 * Alternatively you can download SDL3 library binaries from Odin repo into `build/output` by running:
 
-      .\build.bat get-sdl3
+      .\build.bat get-sdl
 
 * If you want to build SDL3 library binaries yourself, then run build script
 
-      .\build.bat build-sdl3
+      .\build.bat build-sdl
 
 ### Linux
 * If SDL3 package is available through apt, then
@@ -54,7 +54,7 @@ Although SDL3 is included in Odin vendor, it might be missing library binaries f
 
   * Run build script
 
-        ./build.sh build-sdl3
+        ./build.sh build-sdl
 
 ## Usage
 ### Windows

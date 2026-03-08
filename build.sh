@@ -15,7 +15,15 @@ mkdir -p "$VENDOR_DIR"
 
 clear
 
-if [ "$1" = "build-sdl3" ]; then
+if [ "$1" = "build" ]; then
+    odin build source -out:"$OUTPUT_DIR/$EXE_NAME"
+elif [ "$1" = "build-debug" ]; then
+    odin build source -out:"$OUTPUT_DIR/$EXE_NAME" -debug
+elif [ "$1" = "run" ]; then
+    odin run source -out:"$OUTPUT_DIR/$EXE_NAME"
+elif [ "$1" = "run-debug" ]; then
+    odin run source -out:"$OUTPUT_DIR/$EXE_NAME" -debug
+elif [ "$1" = "build-sdl" ]; then
     cd "$VENDOR_DIR"
 
     if [ ! -d sdl ]; then
@@ -29,12 +37,4 @@ if [ "$1" = "build-sdl3" ]; then
     cmake --build build
     sudo cmake --install build
     sudo ldconfig
-elif [ "$1" = "build" ]; then
-    odin build source -out:"$OUTPUT_DIR/$EXE_NAME"
-elif [ "$1" = "run" ]; then
-    odin run source -out:"$OUTPUT_DIR/$EXE_NAME"
-elif [ "$1" = "build-debug" ]; then
-    odin build source -out:"$OUTPUT_DIR/$EXE_NAME" -debug
-elif [ "$1" = "run-debug" ]; then
-    odin run source -out:"$OUTPUT_DIR/$EXE_NAME" -debug
 fi

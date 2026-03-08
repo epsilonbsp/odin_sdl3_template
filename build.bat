@@ -14,10 +14,18 @@ if not exist %VENDOR_DIR% mkdir %VENDOR_DIR%
 
 cls
 
-if "%~1" == "get-sdl3" (
+if "%~1" == "build" (
+    odin build source -out:%OUTPUT_DIR%\%EXE_NAME%
+) else if "%~1" == "build-debug" (
+    odin build source -out:%OUTPUT_DIR%\%EXE_NAME% -debug
+) else if "%~1" == "run" (
+    odin run source -out:%OUTPUT_DIR%\%EXE_NAME%
+) else if "%~1" == "run-debug" (
+    odin run source -out:%OUTPUT_DIR%\%EXE_NAME% -debug
+) else if "%~1" == "get-sdl" (
     curl -L -o %OUTPUT_DIR%\SDL3.dll https://raw.githubusercontent.com/odin-lang/Odin/master/vendor/sdl3/SDL3.dll
     curl -L -o %OUTPUT_DIR%\SDL3.lib https://raw.githubusercontent.com/odin-lang/Odin/master/vendor/sdl3/SDL3.lib
-) else if "%~1" == "build-sdl3" (
+) else if "%~1" == "build-sdl" (
     for /f "tokens=*" %%i in ('"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath') do set VS=%%i
 
     if "!VS!" equ "" (
@@ -41,12 +49,4 @@ if "%~1" == "get-sdl3" (
     cd ..\..
     copy /Y "%VENDOR_DIR%\sdl\build\Release\SDL3.dll" "%OUTPUT_DIR%\SDL3.dll"
     copy /Y "%VENDOR_DIR%\sdl\build\Release\SDL3.lib" "%OUTPUT_DIR%\SDL3.lib"
-) else if "%~1" == "build" (
-    odin build source -out:%OUTPUT_DIR%\%EXE_NAME%
-) else if "%~1" == "run" (
-    odin run source -out:%OUTPUT_DIR%\%EXE_NAME%
-) else if "%~1" == "build-debug" (
-    odin build source -out:%OUTPUT_DIR%\%EXE_NAME% -debug
-) else if "%~1" == "run-debug" (
-    odin run source -out:%OUTPUT_DIR%\%EXE_NAME% -debug
 )
