@@ -33,9 +33,9 @@ if "%~1" == "build" (
         exit /b 1
     )
 
-    cd %VENDOR_DIR%
+    pushd %VENDOR_DIR%
 
-    if not exist sld (
+    if not exist sdl (
         git clone https://github.com/libsdl-org/SDL.git sdl
     )
 
@@ -46,7 +46,8 @@ if "%~1" == "build" (
     cmake -S . -B build
     cmake --build build --config Release
 
-    cd ..\..
+    popd
+
     copy /Y "%VENDOR_DIR%\sdl\build\Release\SDL3.dll" "%OUTPUT_DIR%\SDL3.dll"
     copy /Y "%VENDOR_DIR%\sdl\build\Release\SDL3.lib" "%OUTPUT_DIR%\SDL3.lib"
 )
