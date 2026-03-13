@@ -89,3 +89,28 @@ compute_camera_projection :: proc(camera: ^Camera, aspect: f32) {
 compute_camera_view :: proc(camera: ^Camera) {
     camera.view = glm.mat4LookAt(camera.position, camera.position + camera.forward, camera.up)
 }
+
+Camera_Input :: struct {
+    left: bool,
+    right: bool,
+    backward: bool,
+    forward: bool
+}
+
+fly_camera :: proc(camera: ^Camera, input: Camera_Input, speed: f32) {
+    if input.left {
+        move_camera(camera, {-speed, 0, 0})
+    }
+
+    if input.right {
+        move_camera(camera, {speed, 0, 0})
+    }
+
+    if input.backward {
+        move_camera(camera, {0, 0, -speed})
+    }
+
+    if input.forward {
+        move_camera(camera, {0, 0, speed})
+    }
+}
