@@ -1,109 +1,183 @@
 package main
 
 import "core:fmt"
-import rand "core:math/rand"
+import gl "vendor:OpenGL"
 import glm "core:math/linalg/glsl"
 import sdl "vendor:sdl3"
-import gl "vendor:OpenGL"
 
 WINDOW_TITLE :: "Odin SDL3 Template"
 WINDOW_WIDTH :: 960
 WINDOW_HEIGHT :: 540
 GL_VERSION_MAJOR :: 4
 GL_VERSION_MINOR :: 6
+GLSL_VERSION :: "#version 460 core"
 
-POINT_CAP :: 1024
-POINT_POS_MIN : f32 : -256
-POINT_POS_MAX : f32 : 256
-POINT_RADIUS_MIN : f32 : 0.5
-POINT_RADIUS_MAX : f32 : 8
+Light :: struct {
+    dir: glm.vec3,
+    color: glm.vec3,
+}
 
-VERTEX_SOURCE :: `#version 460 core
+Material :: struct {
+    color: glm.vec3,
+    ambient_strength: f32,
+    diffuse_strength: f32,
+    specular_strength: f32,
+    specular_shine: f32,
+}
+
+Mesh :: struct {
+    translation: glm.vec3,
+    rotation: glm.vec3,
+    scale: glm.vec3,
+    material: Material,
+}
+
+Vertex :: struct {
+    position: glm.vec3,
+    normal: glm.vec3,
+}
+
+light := Light{
+    glm.normalize(glm.vec3{1, 2, 3}),
+    {1, 0.8, 0.6}
+}
+
+meshes := []Mesh {
+    {{-4, 0, 0}, {0, 0, 0}, {2, 2, 2}, {{0.8, 0.5, 0.3}, 0.02, 1.0, 0.0, 1.0  }},
+    {{ 0, 0, 0}, {0, 0, 0}, {2, 2, 2}, {{0.2, 0.4, 0.8}, 0.02, 0.9, 0.5, 32.0 }},
+    {{ 4, 0, 0}, {0, 0, 0}, {2, 2, 2}, {{0.7, 0.7, 0.7}, 0.02, 0.6, 1.0, 256.0}},
+}
+
+mesh_vertices := []Vertex {
+    // Left
+    {{-0.5, -0.5, -0.5}, {-1, 0, 0}},
+    {{-0.5, -0.5,  0.5}, {-1, 0, 0}},
+    {{-0.5,  0.5,  0.5}, {-1, 0, 0}},
+    {{-0.5,  0.5, -0.5}, {-1, 0, 0}},
+
+    // Right
+    {{ 0.5, -0.5,  0.5}, {1, 0, 0}},
+    {{ 0.5, -0.5, -0.5}, {1, 0, 0}},
+    {{ 0.5,  0.5, -0.5}, {1, 0, 0}},
+    {{ 0.5,  0.5,  0.5}, {1, 0, 0}},
+
+    // Bottom
+    {{-0.5, -0.5, -0.5}, {0, -1, 0}},
+    {{ 0.5, -0.5, -0.5}, {0, -1, 0}},
+    {{ 0.5, -0.5,  0.5}, {0, -1, 0}},
+    {{-0.5, -0.5,  0.5}, {0, -1, 0}},
+
+    // Top
+    {{-0.5,  0.5,  0.5}, {0, 1, 0}},
+    {{ 0.5,  0.5,  0.5}, {0, 1, 0}},
+    {{ 0.5,  0.5, -0.5}, {0, 1, 0}},
+    {{-0.5,  0.5, -0.5}, {0, 1, 0}},
+
+    // Back
+    {{ 0.5, -0.5, -0.5}, {0, 0, -1}},
+    {{-0.5, -0.5, -0.5}, {0, 0, -1}},
+    {{-0.5,  0.5, -0.5}, {0, 0, -1}},
+    {{ 0.5,  0.5, -0.5}, {0, 0, -1}},
+
+    // Front
+    {{-0.5, -0.5,  0.5}, {0, 0, 1}},
+    {{ 0.5, -0.5,  0.5}, {0, 0, 1}},
+    {{ 0.5,  0.5,  0.5}, {0, 0, 1}},
+    {{-0.5,  0.5,  0.5}, {0, 0, 1}},
+}
+
+mesh_indices := []u32 {
+    // Left
+    0, 1, 2, 0, 2, 3,
+
+    // Right
+    4, 5, 6, 4, 6, 7,
+
+    // Bottom
+    8, 9, 10, 8, 10, 11,
+
+    // Top
+    12, 13, 14, 12, 14, 15,
+
+    // Back
+    16, 17, 18, 16, 18, 19,
+
+    // Front
+    20, 21, 22, 20, 22, 23,
+}
+
+mesh_index_count := len(mesh_indices)
+
+MAIN_VS :: GLSL_VERSION + `
     layout(location = 0) in vec3 i_position;
-    layout(location = 1) in float i_radius;
-    layout(location = 2) in int i_color;
-    flat out float v_radius;
-    flat out int v_color;
-    out vec2 v_tex_coord;
+    layout(location = 1) in vec3 i_normal;
+
+    out vec3 v_normal;
+    out vec3 v_world_pos;
+
     uniform mat4 u_projection;
     uniform mat4 u_view;
-
-    const vec2 positions[4] = vec2[](
-        vec2(-1.0, -1.0),
-        vec2(1.0, -1.0),
-        vec2(-1.0, 1.0),
-        vec2(1.0, 1.0)
-    );
-
-    const vec2 tex_coords[4] = vec2[](
-        vec2(0.0, 0.0),
-        vec2(1.0, 0.0),
-        vec2(0.0, 1.0),
-        vec2(1.0, 1.0)
-    );
+    uniform mat4 u_model;
+    uniform mat3 u_normal_matrix;
 
     void main() {
-        mat3 cam_rot = transpose(mat3(u_view));
-        vec3 local = cam_rot * vec3(positions[gl_VertexID] * i_radius, 0.0);
-        vec3 position = local + i_position;
+        vec4 world_pos = u_model * vec4(i_position, 1.0);
 
-        gl_Position = u_projection * u_view * vec4(position, 1.0);
-        v_radius = i_radius;
-        v_color = i_color;
-        v_tex_coord = tex_coords[gl_VertexID];
+        gl_Position = u_projection * u_view * world_pos;
+        v_normal = u_normal_matrix * i_normal;
+        v_world_pos = world_pos.xyz;
     }
 `
 
-FRAGMENT_SOURCE :: `#version 460 core
-    precision mediump float;
-    flat in int v_color;
-    in vec2 v_tex_coord;
+MAIN_FS :: GLSL_VERSION + `
+    in vec3 v_normal;
+    in vec3 v_world_pos;
+
     out vec4 o_frag_color;
 
-    vec3 get_color(int color) {
-        return vec3(
-            (color >> 16) & 0xFF,
-            (color >> 8) & 0xFF,
-            color & 0xFF
-        ) / 255.0;
-    }
+    uniform vec3 u_view_pos;
+    uniform vec3 u_light_dir;
+    uniform vec3 u_light_color;
+    uniform vec3 u_mat_color;
+    uniform float u_mat_ambient_strength;
+    uniform float u_mat_diffuse_strength;
+    uniform float u_mat_specular_strength;
+    uniform float u_mat_specular_shine;
 
     void main() {
-        vec2 uv = v_tex_coord;
-        vec2 cp = uv * 2.0 - 1.0;
+        vec3 normal = normalize(v_normal);
+        vec3 view_dir = normalize(u_view_pos - v_world_pos);
+        vec3 half_dir = normalize(u_light_dir + view_dir);
 
-        if (cp.x * cp.x + cp.y * cp.y > 1.0) {
-            discard;
-        }
+        vec3 ambient = u_mat_color * u_light_color * u_mat_ambient_strength;
+        vec3 diffuse = u_mat_color * u_light_color * max(dot(normal, u_light_dir), 0.0) * u_mat_diffuse_strength;
+        vec3 specular = u_light_color * pow(max(dot(normal, half_dir), 0.0), u_mat_specular_shine) * u_mat_specular_strength;
 
-        o_frag_color = vec4(get_color(v_color), 1.0);
+        vec3 result = ambient + diffuse + specular;
+
+        o_frag_color = vec4(pow(result, vec3(1.0 / 2.2)), 1.0);
     }
 `
 
-Point :: struct {
-    position: glm.vec3,
-    radius: f32,
-    color: i32
-}
+make_transform :: proc(translation: glm.vec3, rotation: glm.vec3, scale: glm.vec3) -> glm.mat4 {
+    qx := glm.quatAxisAngle({1, 0, 0}, rotation.x)
+    qy := glm.quatAxisAngle({0, 1, 0}, rotation.y)
+    qz := glm.quatAxisAngle({0, 0, 1}, rotation.z)
+    q := qz * qy * qx
 
-pack_color :: proc(color: glm.ivec3) -> i32 {
-    return (color.x << 16) | (color.y << 8) | color.z;
-}
-
-random_color :: proc() -> i32 {
-    return pack_color({rand.int31() % 256, rand.int31() % 256, rand.int31() % 256})
+    return glm.mat4Translate(translation) * glm.mat4FromQuat(q) * glm.mat4Scale(scale)
 }
 
 main :: proc() {
     if !sdl.Init({.VIDEO}) {
-        fmt.printf("SDL ERROR: %s\n", sdl.GetError())
+        fmt.print("SDL ERROR: %s\n", sdl.GetError())
 
         return
     }
 
     defer sdl.Quit()
 
-    sdl.GL_SetAttribute(.CONTEXT_PROFILE_MASK, i32(sdl.GLProfile.CORE))
+    sdl.GL_SetAttribute(.CONTEXT_PROFILE_MASK, auto_cast(sdl.GLProfile.CORE))
     sdl.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, GL_VERSION_MAJOR)
     sdl.GL_SetAttribute(.CONTEXT_MINOR_VERSION, GL_VERSION_MINOR)
 
@@ -120,88 +194,74 @@ main :: proc() {
 
     viewport_x, viewport_y: i32; sdl.GetWindowSize(window, &viewport_x, &viewport_y)
     key_state := sdl.GetKeyboardState(nil)
-    time: u64 = sdl.GetTicks()
-    time_delta : f32 = 0
-    time_last := time
+    time_curr := u64(sdl.GetTicks())
+    time_last: u64
+    time_delta: f32
 
-    camera: Camera; init_camera(&camera)
-    movement_speed: f32 = 30
-    yaw_speed: f32 = 0.002
-    pitch_speed: f32 = 0.002
+    main_pg, main_ok := gl.load_shaders_source(MAIN_VS, MAIN_FS); defer gl.DeleteProgram(main_pg)
+    main_uf := gl.get_uniforms_from_program(main_pg); defer gl.destroy_uniforms(main_uf);
 
-    program, program_status := gl.load_shaders_source(VERTEX_SOURCE, FRAGMENT_SOURCE)
-    uniforms := gl.get_uniforms_from_program(program)
-
-    if !program_status {
-        fmt.printf("SHADER LOAD ERROR: %s\n", gl.get_last_error_message())
+    if !main_ok {
+        fmt.print("PROGRAM ERROR: %s\n", gl.get_last_error_message())
 
         return
     }
 
-    defer gl.DeleteProgram(program)
+    main_vao: u32; gl.GenVertexArrays(1, &main_vao); defer gl.DeleteVertexArrays(1, &main_vao)
+    gl.BindVertexArray(main_vao)
 
-    points : [POINT_CAP]Point
+    main_vbo: u32; gl.GenBuffers(1, &main_vbo); defer gl.DeleteBuffers(1, &main_vbo)
+    gl.BindBuffer(gl.ARRAY_BUFFER, main_vbo)
+    gl.BufferData(gl.ARRAY_BUFFER, len(mesh_vertices) * size_of(mesh_vertices[0]), &mesh_vertices[0], gl.STATIC_DRAW)
 
-    for &point in points {
-        point.position = {rand.float32_range(POINT_POS_MIN, POINT_POS_MAX), rand.float32_range(POINT_POS_MIN, POINT_POS_MAX), rand.float32_range(POINT_POS_MIN, POINT_POS_MAX)}
-        point.radius = rand.float32_range(POINT_RADIUS_MIN, POINT_RADIUS_MAX)
-        point.color = random_color()
-    }
-
-    vao: u32; gl.GenVertexArrays(1, &vao); defer gl.DeleteVertexArrays(1, &vao)
-    gl.BindVertexArray(vao)
-
-    vbo: u32; gl.GenBuffers(1, &vbo); defer gl.DeleteBuffers(1, &vbo)
-    gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-    gl.BufferData(gl.ARRAY_BUFFER, POINT_CAP * size_of(Point), &points, gl.STATIC_DRAW)
-
-    offset: i32 = 0
     gl.EnableVertexAttribArray(0)
-    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, size_of(Point), auto_cast offset)
-    gl.VertexAttribDivisor(0, 1)
+    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, size_of(Vertex), 0)
 
-    offset += size_of(glm.vec3)
     gl.EnableVertexAttribArray(1)
-    gl.VertexAttribPointer(1, 1, gl.FLOAT, gl.FALSE, size_of(Point), auto_cast offset)
-    gl.VertexAttribDivisor(1, 1)
+    gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, size_of(Vertex), offset_of(Vertex, normal))
 
-    offset += size_of(i32)
-    gl.EnableVertexAttribArray(2)
-    gl.VertexAttribIPointer(2, 1, gl.INT, size_of(Point), auto_cast offset)
-    gl.VertexAttribDivisor(2, 1)
+    main_ibo: u32; gl.GenBuffers(1, &main_ibo); defer gl.DeleteBuffers(1, &main_ibo)
+    gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, main_ibo)
+    gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, mesh_index_count * size_of(mesh_indices[0]), &mesh_indices[0], gl.STATIC_DRAW)
+
+    camera: Camera
+    init_camera(&camera, position = {6, 6, 6})
+    point_camera_at(&camera, {})
+
+    camera_movement := Camera_Movement{move_speed = 5, yaw_speed = 0.002, pitch_speed = 0.002}
 
     gl.Enable(gl.DEPTH_TEST)
     gl.Enable(gl.CULL_FACE)
 
     loop: for {
-        time = sdl.GetTicks()
-        time_delta = f32(time - time_last) / 1000
-        time_last = time
+        time_curr = u64(sdl.GetTicks())
+        time_delta = f32(time_curr - time_last) / 1000
+        time_last = time_curr
 
         event: sdl.Event
 
         for sdl.PollEvent(&event) {
             #partial switch event.type {
-                case .QUIT:
-                    break loop
-                case .WINDOW_RESIZED:
-                    sdl.GetWindowSize(window, &viewport_x, &viewport_y)
-                case .KEY_DOWN:
-                    if event.key.scancode == sdl.Scancode.ESCAPE {
-                        _ = sdl.SetWindowRelativeMouseMode(window, !sdl.GetWindowRelativeMouseMode(window))
-                    }
-                case .MOUSE_MOTION:
-                    if sdl.GetWindowRelativeMouseMode(window) {
-                        rotate_camera(&camera, event.motion.xrel * yaw_speed, event.motion.yrel * pitch_speed, 0)
-                    }
+            case .QUIT:
+                break loop
+            case .WINDOW_RESIZED:
+                sdl.GetWindowSize(window, &viewport_x, &viewport_y)
+            case .KEY_DOWN:
+                if event.key.scancode == sdl.Scancode.ESCAPE {
+                    _ = sdl.SetWindowRelativeMouseMode(window, !sdl.GetWindowRelativeMouseMode(window))
+                }
+            case .MOUSE_MOTION:
+                if sdl.GetWindowRelativeMouseMode(window) {
+                    rotate_camera(&camera, event.motion.xrel * camera_movement.yaw_speed, event.motion.yrel * camera_movement.pitch_speed, 0)
+                }
             }
         }
 
         if (sdl.GetWindowRelativeMouseMode(window)) {
-            fly_camera(
+            input_fly_camera(
                 &camera,
                 {key_state[sdl.Scancode.A], key_state[sdl.Scancode.D], key_state[sdl.Scancode.S], key_state[sdl.Scancode.W]},
-                time_delta * movement_speed
+                time_delta * camera_movement.move_speed
             )
         }
 
@@ -209,12 +269,30 @@ main :: proc() {
         compute_camera_view(&camera)
 
         gl.Viewport(0, 0, viewport_x, viewport_y)
-        gl.ClearColor(0, 0, 0, 1.0)
+        gl.ClearColor(0.5, 0.5, 0.5, 1.0)
         gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-        gl.UseProgram(program)
-        gl.UniformMatrix4fv(uniforms["u_projection"].location, 1, false, &camera.projection[0][0])
-        gl.UniformMatrix4fv(uniforms["u_view"].location, 1, false, &camera.view[0][0])
-        gl.DrawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, POINT_CAP)
+
+        gl.UseProgram(main_pg)
+        gl.UniformMatrix4fv(main_uf["u_projection"].location, 1, false, &camera.projection[0][0])
+        gl.UniformMatrix4fv(main_uf["u_view"].location, 1, false, &camera.view[0][0])
+        gl.Uniform3fv(main_uf["u_view_pos"].location, 1, &camera.position[0])
+        gl.Uniform3fv(main_uf["u_light_dir"].location, 1, &light.dir[0])
+        gl.Uniform3fv(main_uf["u_light_color"].location, 1, &light.color[0])
+
+        for &mesh in meshes {
+            model := make_transform(mesh.translation, mesh.rotation, mesh.scale)
+            normal_matrix := glm.transpose(glm.inverse(glm.mat3(model)))
+
+            gl.UniformMatrix4fv(main_uf["u_model"].location, 1, false, &model[0][0])
+            gl.UniformMatrix3fv(main_uf["u_normal_matrix"].location, 1, false, &normal_matrix[0][0])
+            gl.Uniform3fv(main_uf["u_mat_color"].location, 1, &mesh.material.color[0])
+            gl.Uniform1f(main_uf["u_mat_ambient_strength"].location, mesh.material.ambient_strength)
+            gl.Uniform1f(main_uf["u_mat_diffuse_strength"].location, mesh.material.diffuse_strength)
+            gl.Uniform1f(main_uf["u_mat_specular_strength"].location, mesh.material.specular_strength)
+            gl.Uniform1f(main_uf["u_mat_specular_shine"].location, mesh.material.specular_shine)
+
+            gl.DrawElements(gl.TRIANGLES, i32(mesh_index_count), gl.UNSIGNED_INT, nil)
+        }
 
         sdl.GL_SwapWindow(window)
     }
