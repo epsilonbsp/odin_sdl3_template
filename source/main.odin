@@ -170,7 +170,7 @@ make_transform :: proc(translation: glm.vec3, rotation: glm.vec3, scale: glm.vec
 
 main :: proc() {
     if !sdl.Init({.VIDEO}) {
-        fmt.print("SDL ERROR: %s\n", sdl.GetError())
+        fmt.printf("SDL ERROR: %s\n", sdl.GetError())
 
         return
     }
@@ -201,11 +201,7 @@ main :: proc() {
     main_pg, main_ok := gl.load_shaders_source(MAIN_VS, MAIN_FS); defer gl.DeleteProgram(main_pg)
     main_uf := gl.get_uniforms_from_program(main_pg); defer gl.destroy_uniforms(main_uf);
 
-    if !main_ok {
-        fmt.print("PROGRAM ERROR: %s\n", gl.get_last_error_message())
-
-        return
-    }
+    assert(main_ok, "ERROR: Failed to compile program")
 
     main_vao: u32; gl.GenVertexArrays(1, &main_vao); defer gl.DeleteVertexArrays(1, &main_vao)
     gl.BindVertexArray(main_vao)
