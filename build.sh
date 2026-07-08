@@ -37,4 +37,6 @@ elif [ "$1" = "build-sdl" ]; then
     cmake --build build
     sudo cmake --install build
     sudo ldconfig
+else
+    echo "No valid command specified"
 fi
